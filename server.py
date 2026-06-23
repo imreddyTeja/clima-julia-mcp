@@ -68,22 +68,23 @@ class JuliaSession:
             channel_args = []
             extra_flags = remaining
 
-        if not os.path.isabs(executable):
-            resolved = shutil.which(executable)
-            if resolved is None:
-                raise RuntimeError(
-                    f"'{executable}' not found in PATH. Install Julia from https://julialang.org/downloads/"
-                )
-            executable = resolved
+        # if not os.path.isabs(executable):
+        #     resolved = shutil.which(executable)
+        #     if resolved is None:
+        #         raise RuntimeError(
+        #             f"'{executable}' not found in PATH. Install Julia from https://julialang.org/downloads/"
+        #         )
+        #     executable = resolved
 
-        cmd = [
-            executable,
-            *channel_args,
-            "-i",
-            *self.julia_args,
-            *extra_flags,
-            f"--project={self.project_path}",
-        ]
+        julia_flags = ["-i", *self.julia_args, *extra_flags, f"--project={self.project_path}"]
+
+        if self.julia_cmd and ";" in self.julia_cmd:
+            # Shell compound command (e.g. "module load X; srun ... julia") —
+            # must run via bash because 'module' is a shell function, not a binary.
+            shell_cmd = self.julia_cmd + " " + " ".join(shlex.quote(f) for f in julia_flags)
+            cmd = ["bash", "--login", "-c", shell_cmd]
+        else:
+            cmd = [executable, *channel_args, *julia_flags]
 
         self.process = await asyncio.create_subprocess_exec(
             *cmd,
@@ -340,10 +341,10 @@ async def julia_eval(
         effective_timeout = timeout if timeout > 0 else None
 
     try:
-        if clima_module is not None:
-            julia_cmd = "module load " + clima_module + "; " + (julia_cmd or "julia")
         if uses_cuda:
             julia_cmd = f"srun -t 08:00:00 --gpus=1 --threads=3 --export=ALL,CLIMACOMMS_CONTEXT=SINGLETON,CLIMACOMMS_DEVICE=CUDA {julia_cmd or 'julia'}"
+        if clima_module is not None:
+            julia_cmd = "module load " + clima_module + "; " + (julia_cmd or "julia")
         session = await manager.get_or_create(env_path, julia_cmd=julia_cmd)
         output = await session.execute(code, timeout=effective_timeout)
         return output if output else "(no output)"
