@@ -315,6 +315,8 @@ async def julia_eval(
     env_path: str | None = None,
     timeout: float | None = None,
     julia_cmd: str | None = None,
+    clima_module: str | None = None,
+    uses_cuda: bool = False,
 ) -> str:
     """ALWAYS use this tool to run Julia code. NEVER run julia via command line.
 
@@ -327,6 +329,8 @@ async def julia_eval(
         env_path: Julia project directory path. Omit for a temporary environment.
         timeout: Seconds (default: 60). Auto-disabled for Pkg operations.
         julia_cmd: Custom Julia command, should be used rarely, only when explicitly requested. Examples: "julia +1.11", "julia --check-bounds=yes", "/path/to/julia".
+        clima_module: (default: None) which clima module to load
+        uses_cuda: (default: False) Controls wether the session the code is evaluated in should have a gpu. If True, the session will run on a slurm allocation
     """
     if timeout is None:
         effective_timeout: float | None = (
@@ -336,6 +340,10 @@ async def julia_eval(
         effective_timeout = timeout if timeout > 0 else None
 
     try:
+        if clima_module is not None:
+            julia_cmd = "module load " + clima_module + "; " + (julia_cmd or "julia")
+        if uses_cuda:
+            julia_cmd = f"srun -t 08:00:00 --gpus=1 --threads=3 --export=ALL,CLIMACOMMS_CONTEXT=SINGLETON,CLIMACOMMS_DEVICE=CUDA {julia_cmd or 'julia'}"
         session = await manager.get_or_create(env_path, julia_cmd=julia_cmd)
         output = await session.execute(code, timeout=effective_timeout)
         return output if output else "(no output)"
@@ -372,6 +380,26 @@ async def julia_restart(env_path: str | None = None) -> str:
             f"Active sessions: {active}"
         )
     return f"No active session for env_path={label} — nothing to restart."
+
+
+@mcp.tool()
+async def julia_shutdown(env_path: str | None = None) -> str:
+    """Shut down a Julia session, killing the process without restarting it.
+
+    Args:
+        env_path: Environment to shut down. If omitted, shuts down the temporary session.
+                  Pass 'all' to shut down every active session.
+    """
+    if env_path == "all":
+        await manager.shutdown()
+        return "All Julia sessions have been shut down."
+    key = manager._key(env_path)
+    if key not in manager._sessions:
+        label = env_path if env_path is not None else "temporary"
+        return f"No active session for env_path={label} — nothing to shut down."
+    session = manager._sessions.pop(key)
+    await session.kill()
+    return f"Session shut down (env_path={env_path if env_path is not None else 'temporary'})."
 
 
 @mcp.tool()

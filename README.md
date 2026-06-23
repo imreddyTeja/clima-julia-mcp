@@ -1,4 +1,4 @@
-# julia-mcp
+# clima-julia-mcp
 
 MCP server that gives AI assistants access to efficient Julia code execution. Avoids Julia's startup and compilation costs by keeping sessions alive across calls, and persists state (variables, functions, loaded packages) between them — so each iteration is fast.
 
@@ -26,28 +26,18 @@ The server itself is written in Python since the Python MCP protocol implementat
 
 # Usage
 
-First, clone the repository:
-
-```bash
-cd /any_directory
-git clone https://github.com/aplavin/julia-mcp.git
-```
-Then register the server with your client of choice (see below).
-
-That's it! Your AI assistant can now execute Julia code more efficiently, saving of TTFX.
-
 ### Claude Code
 
 User-wide (recommended — makes Julia available in all projects):
 
 ```bash
-claude mcp add --scope user julia -- uv run --directory /any_directory/julia-mcp python server.py
+claude mcp add --scope user julia -- uv run --directory /any_directory/clima-julia-mcp python server.py
 ```
 
 Project-scoped (only available in the current project):
 
 ```bash
-claude mcp add --scope project julia -- uv run --directory /any_directory/julia-mcp python server.py
+claude mcp add --scope project julia -- uv run --directory /any_directory/clima-julia-mcp python server.py
 ```
 
 <details>
@@ -56,7 +46,7 @@ claude mcp add --scope project julia -- uv run --directory /any_directory/julia-
 Append Julia flags after `server.py` to override the defaults (`--startup-file=no --threads=auto`):
 
 ```bash
-claude mcp add --scope user julia -- uv run --directory /any_directory/julia-mcp python server.py --threads=1 --startup-file=yes
+claude mcp add --scope user julia -- uv run --directory /any_directory/clima-julia-mcp python server.py --threads=1 --startup-file=yes
 ```
 </details>
 
@@ -69,7 +59,7 @@ Add to `claude_desktop_config.json`:
   "mcpServers": {
     "julia": {
       "command": "uv",
-      "args": ["run", "--directory", "/any_directory/julia-mcp", "python", "server.py"]
+      "args": ["run", "--directory", "/any_directory/clima-julia-mcp", "python", "server.py"]
     }
   }
 }
@@ -85,110 +75,16 @@ Append Julia flags after `server.py` to override the defaults (`--startup-file=n
   "mcpServers": {
     "julia": {
       "command": "uv",
-      "args": ["run", "--directory", "/any_directory/julia-mcp", "python", "server.py", "--threads=1", "--startup-file=yes"]
+      "args": ["run", "--directory", "/any_directory/clima-julia-mcp", "python", "server.py", "--threads=1", "--startup-file=yes"]
     }
   }
 }
 ```
 </details>
 
-### Codex CLI
-
-User-wide — makes Julia available in all projects: 
-```
-codex mcp add julia -- uv run --directory /any_directory/julia-mcp server.py
-```
-
-<details>
-<summary>Custom Julia CLI arguments</summary>
-
-Append Julia flags after `server.py` to override the defaults (`--startup-file=no --threads=auto`):
-
-```
-codex mcp add julia -- uv run --directory /any_directory/julia-mcp server.py --threads=1 --startup-file=yes
-```
-</details>
-
-### VS Code Copilot
-
-Add to `.vscode/mcp.json`:
-
-```json
-{
-  "servers": {
-    "julia": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/julia-mcp", "python", "server.py"]
-    }
-  }
-}
-```
-
-<details>
-<summary>Custom Julia CLI arguments</summary>
-
-Append Julia flags after `server.py` to override the defaults (`--startup-file=no --threads=auto`):
-
-```json
-{
-  "servers": {
-    "julia": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/julia-mcp", "python", "server.py", "--threads=1", "--startup-file=yes"]
-    }
-  }
-}
-```
-</details>
-
-### GitHub Copilot CLI
-
-Edit `$HOME/.copilot/mcp-config.json`, and enter
-
-```json
-{
-  "mcpServers": {
-    "julia": {
-      "type": "stdio",
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/julia-mcp", "python", "-u", "server.py"]
-    }
-  }
-}
-```
-Beware that on Windows, `\` must be escaped (so write as `C:\\my_folder\\...`)
-
-### GitHub Copilot Cloud Agent
-
-To enable the MCP for a single repo, go to Settings, then scroll down the left panel until you get to Copilot, open that dropdown and select Cloud agent. Then scroll down to the section Model Context Protocol (MCP) and add the following
-
-```json
-{
-  "mcpServers": {
-    "julia": {
-      "type": "local",
-      "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/aplavin/julia-mcp",
-        "julia-mcp"
-      ],
-      "tools": ["*"]
-    }
-  }
-}
-```
 
 ## Details
 
 - Each unique `env_path` gets its own isolated Julia session. Omitting `env_path` uses a temporary session that is cleaned up on MCP shutdown.
 - If `env_path` ends in `/test/`, the parent directory is used as the project and `TestEnv` is activated automatically. For this to work, `TestEnv` must be installed in the base environment.
 - Julia is launched with `--threads=auto` and `--startup-file=no` by default. Pass custom Julia CLI flags after `server.py` to override these defaults entirely.
-
-
-## Alternatives
-
-Other projects that give AI agents access to Julia:
-
-- [MCPRepl.jl](https://github.com/hexaeder/MCPRepl.jl) and [REPLicant.jl](https://github.com/MichaelHatherly/REPLicant.jl) require you to manually start and manage Julia sessions. `julia-mcp` handles this automatically.
-- [DaemonConductor.jl](https://github.com/tecosaur/DaemonConductor.jl) (linux only) runs Julia scripts, but calls are independent and don't share variables. `julia-mcp` retains state between calls.
